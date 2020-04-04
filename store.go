@@ -84,7 +84,7 @@ func SessionOptions(options *sessions.Options) SessionStoreOption {
 }
 
 // New creates a new session store for gorilla/sessions backed by
-// "go.etcd.io/bbolt".
+// "go.etcd.io/bbolt". The configured bucket is also created.
 //
 // Returns a new session store or nil and an error if an error occured.
 // If no keys were given, the error returned is ErrInsufficientKeys.
@@ -113,6 +113,14 @@ func New(db *bolt.DB, opts ...SessionStoreOption) (sessions.Store, error) {
 
 	if len(s.bucket) == 0 {
 		s.bucket = []byte(DefaultBucketname)
+	}
+
+	err = db.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists(s.bucket)
+		return err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("initializing bucket: %s", err)
 	}
 	return s, nil
 }
