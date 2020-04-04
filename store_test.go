@@ -8,7 +8,7 @@ import (
 	"os"
 	"testing"
 
-	store "github.com/mwmahlberg/gorilla-boltstore"
+	boltstore "github.com/mwmahlberg/gorilla-boltstore"
 	uuid "github.com/satori/go.uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -37,7 +37,7 @@ func (s *StoreSuite) SetupTest() {
 		return
 	}
 	if err := s.db.Update(func(tx *bolt.Tx) error {
-		_, err := tx.CreateBucketIfNotExists([]byte(store.DefaultBucketname))
+		_, err := tx.CreateBucketIfNotExists([]byte(boltstore.DefaultBucketname))
 		return err
 	}); err != nil {
 		panic(err)
@@ -58,24 +58,24 @@ func (s *StoreSuite) TestNewStore() {
 	testCases := []struct {
 		desc      string
 		db        *bolt.DB
-		opts      []store.SessionStoreOption
+		opts      []boltstore.SessionStoreOption
 		isValidID func(string) bool
 	}{
 		{
 			desc: "Static generator",
 			db:   s.db,
-			opts: []store.SessionStoreOption{
-				store.IDGenerator(func() (string, error) { return "foo", nil }),
-				store.Keys([]byte("foo")),
+			opts: []boltstore.SessionStoreOption{
+				boltstore.IDGenerator(func(_ *http.Request) (string, error) { return "foo", nil }),
+				boltstore.Keys([]byte("foo")),
 			},
 			isValidID: func(s string) bool { return s == "foo" },
 		},
 		{
 			desc: "Default Generator",
 			db:   s.db,
-			opts: []store.SessionStoreOption{
-				store.IDGenerator(store.DefaultIDGenerator()),
-				store.Keys([]byte("foo")),
+			opts: []boltstore.SessionStoreOption{
+				boltstore.IDGenerator(boltstore.DefaultIDGenerator()),
+				boltstore.Keys([]byte("foo")),
 			},
 			isValidID: func(s string) bool {
 				id, err := uuid.FromString(s)
@@ -85,7 +85,7 @@ func (s *StoreSuite) TestNewStore() {
 		{
 			desc: "Nil Generator",
 			db:   s.db,
-			opts: []store.SessionStoreOption{store.Keys([]byte("foo"))},
+			opts: []boltstore.SessionStoreOption{boltstore.Keys([]byte("foo"))},
 			isValidID: func(s string) bool {
 				id, err := uuid.FromString(s)
 				return id.Version() == uuid.V4 && err == nil
@@ -94,9 +94,9 @@ func (s *StoreSuite) TestNewStore() {
 		{
 			desc: "Custom bucket name",
 			db:   s.db,
-			opts: []store.SessionStoreOption{
-				store.SessionBucket("customBucket"),
-				store.Keys([]byte("foo")),
+			opts: []boltstore.SessionStoreOption{
+				boltstore.SessionBucket("customBucket"),
+				boltstore.Keys([]byte("foo")),
 			},
 			isValidID: func(s string) bool {
 				id, err := uuid.FromString(s)
@@ -106,7 +106,7 @@ func (s *StoreSuite) TestNewStore() {
 	}
 	for _, tC := range testCases {
 		s.T().Run(tC.desc, func(t *testing.T) {
-			st, err := store.NewBoltDBSessionStore(tC.db, tC.opts...)
+			st, err := boltstore.New(tC.db, tC.opts...)
 			assert.NoError(t, err, "creating store: %s", err)
 			assert.NotNil(t, st, "creating store: store is nil")
 			sess, err := st.New(nil, "sess")
@@ -153,7 +153,7 @@ func (suite *StoreSuite) TestLC() {
 		},
 	}
 
-	st, err := store.NewBoltDBSessionStore(suite.db, store.Keys([]byte("foo")))
+	st, err := boltstore.New(suite.db, boltstore.Keys([]byte("foo")))
 	assert.NoError(suite.T(), err, "creating new session store: %s", err)
 	assert.NotNil(suite.T(), st, "session store is nil after creation")
 

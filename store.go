@@ -11,11 +11,24 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
+// DefaultBucketname is unsurprisingly the default name of the bucket in
+// which the sessions are stored.
 const DefaultBucketname = "_boltstore_sessions"
 
-var ErrSessionNotStored = errors.New("session not found in store")
+var (
+	// ErrInsufficientKeys is returned by New if no key were given for encryption
+	// and/or signing of the cookies.
+	ErrInsufficientKeys = errors.New("No keys or keypairs were given")
 
-type IDGeneratorFunc func() (string, error)
+	// ErrSessionNotStored is returned by Get if there was a valid session,
+	// but no data was found in the database.
+	ErrSessionNotStored = errors.New("session not found in store")
+)
+
+// An IDGeneratorFunc is used to generate a unique session ID.
+type IDGeneratorFunc func(*http.Request) (string, error)
+
+// A SessionStoreOption sets parameters for the session store.
 type SessionStoreOption func(s *store) error
 
 type store struct {
@@ -29,11 +42,14 @@ type store struct {
 // DefaultIDGenerator is the default implementation of IDGeneratorFunc.
 // It generates a UUID V4 string.
 func DefaultIDGenerator() IDGeneratorFunc {
-	return func() (string, error) {
+	return func(_ *http.Request) (string, error) {
 		return uuid.NewV4().String(), nil
 	}
 }
 
+// Keys sets the key pairs for encryting and signing the secure cookies
+// set.
+//
 func Keys(keyPairs ...[]byte) SessionStoreOption {
 	return func(s *store) error {
 		s.codecs = securecookie.CodecsFromPairs(keyPairs...)
@@ -41,6 +57,9 @@ func Keys(keyPairs ...[]byte) SessionStoreOption {
 	}
 }
 
+// IDGenerator sets the function that is used to generate unique IDs for each session.
+//
+// By default, a UUID V4 is used to generate unique IDs.
 func IDGenerator(f IDGeneratorFunc) SessionStoreOption {
 	return func(s *store) error {
 		s.genfunc = f
@@ -48,6 +67,7 @@ func IDGenerator(f IDGeneratorFunc) SessionStoreOption {
 	}
 }
 
+// SessionBucket sets the name of the boltdb bucket in which the sessions are stored.
 func SessionBucket(name string) SessionStoreOption {
 	return func(s *store) error {
 		s.bucket = []byte(name)
@@ -55,6 +75,7 @@ func SessionBucket(name string) SessionStoreOption {
 	}
 }
 
+// SessionOptions sets the options for the sessions.
 func SessionOptions(options *sessions.Options) SessionStoreOption {
 	return func(s *store) error {
 		s.sessionOpts = options
@@ -62,16 +83,30 @@ func SessionOptions(options *sessions.Options) SessionStoreOption {
 	}
 }
 
-// NewBoltDBSessionStore creates a new session store for gorilla/sessions backed by
+// New creates a new session store for gorilla/sessions backed by
 // "go.etcd.io/bbolt".
-func NewBoltDBSessionStore(db *bolt.DB, opts ...SessionStoreOption) (sessions.Store, error) {
-	s := &store{db: db}
+//
+// Returns a new session store or nil and an error if an error occured.
+// If no keys were given, the error returned is ErrInsufficientKeys.
+func New(db *bolt.DB, opts ...SessionStoreOption) (sessions.Store, error) {
+	s := &store{
+		db: db,
+		sessionOpts: &sessions.Options{
+			Path:   "/",
+			MaxAge: 86400 * 30,
+		},
+	}
 	var err error
 	for _, opt := range opts {
 		if err = opt(s); err != nil {
 			return nil, fmt.Errorf("sessionstore: applying option: %s", err)
 		}
 	}
+
+	if len(s.codecs) == 0 {
+		return nil, ErrInsufficientKeys
+	}
+
 	if s.genfunc == nil {
 		s.genfunc = DefaultIDGenerator()
 	}
@@ -88,9 +123,11 @@ func (s *store) New(r *http.Request, name string) (*sessions.Session, error) {
 	var err error
 
 	sess := sessions.NewSession(s, name)
+	opts := *s.sessionOpts
+	sess.Options = &opts
 	sess.IsNew = true
 
-	if sess.ID, err = s.genfunc(); err != nil {
+	if sess.ID, err = s.genfunc(r); err != nil {
 		return nil, fmt.Errorf("generating ID: %s", err)
 	}
 	return sess, nil
