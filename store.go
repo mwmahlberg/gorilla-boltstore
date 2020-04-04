@@ -145,7 +145,7 @@ func (s *store) Get(r *http.Request, name string) (*sessions.Session, error) {
 
 	var sess *sessions.Session
 
-	id, err := retrieveSessionID(r, name)
+	id, err := s.retrieveSessionID(r, name)
 
 	if err != nil && err == http.ErrNoCookie {
 		sess, _ = s.New(r, name)
@@ -188,7 +188,13 @@ func (s *store) Save(r *http.Request, w http.ResponseWriter, sess *sessions.Sess
 		return fmt.Errorf("saving session %s: %s", sess.ID, err)
 	}
 
-	http.SetCookie(w, s.newCookie(sess.Name(), sess.ID))
+	enc, err := securecookie.EncodeMulti(sess.Name(), sess.ID, s.codecs...)
+
+	if err != nil {
+		return fmt.Errorf("encoding cookie: %s", err)
+	}
+
+	http.SetCookie(w, s.newCookie(sess.Name(), enc))
 	return nil
 }
 
@@ -199,7 +205,7 @@ func (s *store) newCookie(name, id string) *http.Cookie {
 	}
 }
 
-func retrieveSessionID(r *http.Request, name string) (string, error) {
+func (s *store) retrieveSessionID(r *http.Request, name string) (string, error) {
 	c, err := r.Cookie(name)
 
 	if err != nil && err == http.ErrNoCookie {
@@ -208,5 +214,11 @@ func retrieveSessionID(r *http.Request, name string) (string, error) {
 		return "", fmt.Errorf("retrieving session cookie: %s", err)
 	}
 
-	return c.Value, nil
+	decoded := ""
+	err = securecookie.DecodeMulti(name, c.Value, &decoded, s.codecs...)
+	if err != nil {
+		return "", fmt.Errorf("decoding cookie: %s", err)
+	}
+
+	return decoded, nil
 }

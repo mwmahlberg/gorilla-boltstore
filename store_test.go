@@ -3,6 +3,7 @@ package boltstore_test
 import (
 	"context"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -55,6 +56,16 @@ func (s *StoreSuite) TearDownTest() {
 }
 
 func (s *StoreSuite) TestNewStore() {
+
+	hash := make([]byte, 64)
+	key := make([]byte, 64)
+
+	for _, b := range [][]byte{hash, key} {
+		n, err := rand.Read(b)
+		assert.NoError(s.T(), err)
+		assert.Equal(s.T(), 64, n)
+	}
+
 	testCases := []struct {
 		desc      string
 		db        *bolt.DB
@@ -66,7 +77,7 @@ func (s *StoreSuite) TestNewStore() {
 			db:   s.db,
 			opts: []boltstore.SessionStoreOption{
 				boltstore.IDGenerator(func(_ *http.Request) (string, error) { return "foo", nil }),
-				boltstore.Keys([]byte("foo")),
+				boltstore.Keys(hash, key),
 			},
 			isValidID: func(s string) bool { return s == "foo" },
 		},
@@ -75,7 +86,7 @@ func (s *StoreSuite) TestNewStore() {
 			db:   s.db,
 			opts: []boltstore.SessionStoreOption{
 				boltstore.IDGenerator(boltstore.DefaultIDGenerator()),
-				boltstore.Keys([]byte("foo")),
+				boltstore.Keys(hash, key),
 			},
 			isValidID: func(s string) bool {
 				id, err := uuid.FromString(s)
@@ -85,7 +96,7 @@ func (s *StoreSuite) TestNewStore() {
 		{
 			desc: "Nil Generator",
 			db:   s.db,
-			opts: []boltstore.SessionStoreOption{boltstore.Keys([]byte("foo"))},
+			opts: []boltstore.SessionStoreOption{boltstore.Keys(hash, key)},
 			isValidID: func(s string) bool {
 				id, err := uuid.FromString(s)
 				return id.Version() == uuid.V4 && err == nil
@@ -96,7 +107,7 @@ func (s *StoreSuite) TestNewStore() {
 			db:   s.db,
 			opts: []boltstore.SessionStoreOption{
 				boltstore.SessionBucket("customBucket"),
-				boltstore.Keys([]byte("foo")),
+				boltstore.Keys(hash, key),
 			},
 			isValidID: func(s string) bool {
 				id, err := uuid.FromString(s)
