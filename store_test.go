@@ -1,12 +1,12 @@
-/* 
+/*
  *  Copyright 2020 Markus W Mahlberg
- *  
+ *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
- *  
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- *  
+ *
  *  Unless required by applicable law or agreed to in writing, software
  *  distributed under the License is distributed on an "AS IS" BASIS,
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -42,19 +42,19 @@ type StoreSuite struct {
 	db *bolt.DB
 }
 
-func (s *StoreSuite) SetupTest() {
+func (suite *StoreSuite) SetupTest() {
 	f, err := ioutil.TempFile("", "boltsessionstore.*.db")
 	if err != nil {
-		s.FailNow("creating temporary database file", "error: %s", err.Error())
+		suite.FailNow("creating temporary database file", "error: %s", err.Error())
 		return
 	}
 	f.Close()
-	s.db, err = bolt.Open(f.Name(), 0600, nil)
+	suite.db, err = bolt.Open(f.Name(), 0600, nil)
 	if err != nil {
-		s.FailNow("opening temporary database", "error: %s", err.Error())
+		suite.FailNow("opening temporary database", "error: %s", err.Error())
 		return
 	}
-	if err := s.db.Update(func(tx *bolt.Tx) error {
+	if err := suite.db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists([]byte(boltstore.DefaultBucketname))
 		return err
 	}); err != nil {
@@ -62,25 +62,25 @@ func (s *StoreSuite) SetupTest() {
 	}
 }
 
-func (s *StoreSuite) TearDownTest() {
-	defer func() { s.db = nil }()
-	defer os.Remove(s.db.Path())
+func (suite *StoreSuite) TearDownTest() {
+	defer func() { suite.db = nil }()
+	defer os.Remove(suite.db.Path())
 
-	if err := s.db.Close(); err != nil {
-		s.FailNow("closing temporary database", "path: %s, error: %s", s.db.Path(), err.Error())
+	if err := suite.db.Close(); err != nil {
+		suite.FailNow("closing temporary database", "path: %s, error: %s", suite.db.Path(), err.Error())
 	}
-	os.Remove(s.db.Path())
+	os.Remove(suite.db.Path())
 }
 
-func (s *StoreSuite) TestNewStore() {
+func (suite *StoreSuite) TestNewStore() {
 
 	hash := make([]byte, 64)
 	key := make([]byte, 64)
 
 	for _, b := range [][]byte{hash, key} {
 		n, err := rand.Read(b)
-		assert.NoError(s.T(), err)
-		assert.Equal(s.T(), 64, n)
+		assert.NoError(suite.T(), err)
+		assert.Equal(suite.T(), 64, n)
 	}
 
 	testCases := []struct {
@@ -91,7 +91,7 @@ func (s *StoreSuite) TestNewStore() {
 	}{
 		{
 			desc: "Static generator",
-			db:   s.db,
+			db:   suite.db,
 			opts: []boltstore.SessionStoreOption{
 				boltstore.IDGenerator(func(_ *http.Request) (string, error) { return "foo", nil }),
 				boltstore.Keys(hash, key),
@@ -100,7 +100,7 @@ func (s *StoreSuite) TestNewStore() {
 		},
 		{
 			desc: "Default Generator",
-			db:   s.db,
+			db:   suite.db,
 			opts: []boltstore.SessionStoreOption{
 				boltstore.IDGenerator(boltstore.DefaultIDGenerator()),
 				boltstore.Keys(hash, key),
@@ -112,7 +112,7 @@ func (s *StoreSuite) TestNewStore() {
 		},
 		{
 			desc: "Nil Generator",
-			db:   s.db,
+			db:   suite.db,
 			opts: []boltstore.SessionStoreOption{boltstore.Keys(hash, key)},
 			isValidID: func(s string) bool {
 				id, err := uuid.FromString(s)
@@ -121,7 +121,7 @@ func (s *StoreSuite) TestNewStore() {
 		},
 		{
 			desc: "Custom bucket name",
-			db:   s.db,
+			db:   suite.db,
 			opts: []boltstore.SessionStoreOption{
 				boltstore.SessionBucket("customBucket"),
 				boltstore.Keys(hash, key),
@@ -133,12 +133,14 @@ func (s *StoreSuite) TestNewStore() {
 		},
 	}
 	for _, tC := range testCases {
-		s.T().Run(tC.desc, func(t *testing.T) {
+		suite.T().Run(tC.desc, func(t *testing.T) {
 			st, err := boltstore.New(tC.db, tC.opts...)
 			assert.NoError(t, err, "creating store: %s", err)
 			assert.NotNil(t, st, "creating store: store is nil")
 			sess, err := st.New(nil, "sess")
+			assert.NoError(t, err, "error retrieving session from store")
 			assert.True(t, tC.isValidID(sess.ID), "Session ID does not match")
+
 		})
 	}
 }
@@ -212,6 +214,7 @@ func (suite *StoreSuite) TestLC() {
 				assert.NotEqual(suite.T(), restored.ID, new.ID)
 				return
 			}
+			assert.NoError(suite.T(), err)
 			assert.EqualValues(suite.T(), tC.values, restored.Values, "values of restored session are not equal")
 		})
 	}

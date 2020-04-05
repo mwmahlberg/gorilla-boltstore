@@ -1,12 +1,12 @@
-/* 
+/*
  *  Copyright 2020 Markus W Mahlberg
- *  
+ *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
- *  
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- *  
+ *
  *  Unless required by applicable law or agreed to in writing, software
  *  distributed under the License is distributed on an "AS IS" BASIS,
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -103,7 +103,7 @@ func SessionOptions(options *sessions.Options) SessionStoreOption {
 // New creates a new session store for gorilla/sessions backed by
 // "go.etcd.io/bbolt". The configured bucket is also created.
 //
-// Returns a new session store or nil and an error if an error occured.
+// Returns a new session store or nil and an error if an error occurred.
 // If no keys were given, the error returned is ErrInsufficientKeys.
 func New(db *bolt.DB, opts ...SessionStoreOption) (sessions.Store, error) {
 	s := &store{
