@@ -23,4 +23,4 @@ License
     limitations under the License.
 
 [gorilla:sessions]: https://www.gorillatoolkit.org/pkg/sessions
-[bbolt]: https://github.com/etcd-io/bbolt
+[bbolt]: https://github.com/etcd-io/bbol
