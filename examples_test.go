@@ -22,10 +22,9 @@ import (
 	"net/http"
 
 	boltstore "github.com/mwmahlberg/gorilla-boltstore"
-	"go.etcd.io/bbolt"
 )
 
-func ExampleIDGeneratorFunc(db *bbolt.DB) {
+func ExampleIDGeneratorFunc() {
 	gen := boltstore.IDGeneratorFunc(func(_ *http.Request) (string, error) {
 		return "foo", nil
 	})
